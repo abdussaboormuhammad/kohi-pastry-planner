@@ -17,6 +17,30 @@ st.set_page_config(
     layout="wide",
 )
 
+# Streamlit's own columns give each column min-width: calc(100% - 24px), so
+# below ~640px viewport width they always stack vertically no matter how the
+# app calls st.columns(). Override that on narrow (phone) screens so the
+# weather tiles and occupancy inputs stay in a row; anything that doesn't
+# fit becomes a horizontal swipe instead of a stack.
+st.markdown("""
+<style>
+@media (max-width: 640px) {
+  [data-testid="stHorizontalBlock"] {
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch;
+      gap: 0.6rem !important;
+      padding-bottom: 4px;
+  }
+  [data-testid="stColumn"] {
+      min-width: 118px !important;
+      flex: 0 0 auto !important;
+      width: auto !important;
+  }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 
 # All day-boundary logic runs on Kohi local time, never the server clock —
