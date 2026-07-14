@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-07-13T19:33:02-05:00",
+  "timezone": "America/Chicago",
+  "location": {
+    "lat": 36.3729,
+    "lon": -94.2088
+  },
+  "business_hours": "06:00-14:00 hourly readings (Kohi open 6 AM-3 PM Central)",
+  "aggregation": "mean of temp/precip/humidity/wind, mode of condition",
+  "days": {
+    "2026-07-13": {
+      "temp_f": 78.9,
+      "precip_in": 0.0,
+      "humidity_pct": 79.7,
+      "wind_mph": 4.3,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    },
+    "2026-07-14": {
+      "temp_f": 79.9,
+      "precip_in": 0.0,
+      "humidity_pct": 57.0,
+      "wind_mph": 5.3,
+      "weather_condition": "clear",
+      "hours_used": 9
+    },
+    "2026-07-15": {
+      "temp_f": 78.7,
+      "precip_in": 0.016,
+      "humidity_pct": 70.2,
+      "wind_mph": 4.6,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    },
+    "2026-07-16": {
+      "temp_f": 75.8,
+      "precip_in": 0.008,
+      "humidity_pct": 79.0,
+      "wind_mph": 7.9,
+      "weather_condition": "rainy",
+      "hours_used": 9
+    },
+    "2026-07-17": {
+      "temp_f": 75.8,
+      "precip_in": 0.0,
+      "humidity_pct": 67.1,
+      "wind_mph": 11.8,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    },
+    "2026-07-18": {
+      "temp_f": 77.0,
+      "precip_in": 0.0,
+      "humidity_pct": 69.2,
+      "wind_mph": 12.8,
+      "weather_condition": "clear",
+      "hours_used": 9
+    },
+    "2026-07-19": {
+      "temp_f": 81.4,
+      "precip_in": 0.0,
+      "humidity_pct": 57.8,
+      "wind_mph": 12.9,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    },
+    "2026-07-20": {
+      "temp_f": 84.3,
+      "precip_in": 0.0,
+      "humidity_pct": 50.0,
+      "wind_mph": 12.7,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    }
+  }
+}

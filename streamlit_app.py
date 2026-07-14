@@ -1,9 +1,15 @@
-import streamlit as st
-import pandas as pd
+import json
 import pickle
-import requests
 from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+import requests
+import streamlit as st
 from catboost import Pool
+
+from fetch_weather_cache import API_URL, aggregate_business_hours
 
 st.set_page_config(
     page_title="Kohi Pastry Planner",
@@ -13,20 +19,47 @@ st.set_page_config(
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-MODELS_DIR = "goal1_trained_models"
+# All day-boundary logic runs on Kohi local time, never the server clock —
+# Streamlit Cloud containers run in UTC and would otherwise flip "today"
+# at 6/7 PM Central.
+CENTRAL = ZoneInfo("America/Chicago")
 
-# Only rank-1 (best) model per category. Ranks 2 and 3 are intentionally ignored.
+MODELS_DIR = "goal1_trained_models"
+CACHE_PATH = Path(__file__).parent / "data" / "weather_cache.json"
+CACHE_MAX_AGE_HOURS = 24
+
+# Only rank-1 (best) model per category, from the 2026-07-13 retrain on
+# outlier-cleaned data. Keys and filenames are backend identifiers — do not
+# rename them; user-facing labels live in DISPLAY_NAMES.
 RANK1_MODELS = {
-    "Butter Croissant":    ("Butter_Croissant_LinearRegression_1.pkl",    "standard"),
-    "Chocolate Croissant": ("Chocolate_Croissant_LinearRegression_1.pkl", "standard"),
-    "Cookie / Brownie":    ("Cookie_Brownie_CatBoost_1.pkl",              "catboost"),
-    "Morning Bun":         ("Morning_Bun_LinearRegression_1.pkl",         "standard"),
-    "Muffin":              ("Muffin_RandomForest_1.pkl",                  "standard"),
-    "Overnight Oats":      ("Overnight_Oats_LightGBM_1.pkl",             "standard"),
-    "Savory":              ("Savory_LightGBM_1.pkl",                      "standard"),
-    "Sweet Treat":         ("Sweet_Treat_LightGBM_1.pkl",                "standard"),
-    "Yogurt Parfait":      ("Yogurt_Parfait_LinearRegression_1.pkl",      "standard"),
+    "Butter Croissant":    ("Butter_Croissant_LightGBM_1.pkl",             "standard"),
+    "Chocolate Croissant": ("Chocolate_Croissant_LinearRegression_1.pkl",  "standard"),
+    "Cookie / Brownie":    ("Cookie_Brownie_CatBoost_1.pkl",               "catboost"),
+    "Morning Bun":         ("Morning_Bun_LightGBM_1.pkl",                  "standard"),
+    "Muffin":              ("Muffin_DecisionTree_1.pkl",                   "standard"),
+    "Overnight Oats":      ("Overnight_Oats_LinearRegression_1.pkl",       "standard"),
+    "Savory":              ("Savory_LightGBM_1.pkl",                       "standard"),
+    "Sweet Treat":         ("Sweet_Treat_CatBoost_1.pkl",                  "catboost"),
+    "Yogurt Parfait":      ("Yogurt_Parfait_DecisionTree_1.pkl",           "standard"),
 }
+
+# User-facing names only — backend keys above stay untouched.
+DISPLAY_NAMES = {
+    "Cookie / Brownie": "Cookie",
+    "Savory":           "Savory Croissant",
+    "Sweet Treat":      "Miso Toast",
+}
+
+def display_name(key: str) -> str:
+    return DISPLAY_NAMES.get(key, key)
+
+# Baked fresh every morning — shown first, in this order.
+BAKE_FRESH = [
+    "Butter Croissant", "Chocolate Croissant", "Muffin",
+    "Savory", "Morning Bun", "Sweet Treat",
+]
+# Not baked fresh daily — stocked ahead instead.
+STOCK_AHEAD = ["Cookie / Brownie", "Overnight Oats", "Yogurt Parfait"]
 
 # 29-column dummy-encoded feature order — non-CatBoost models.
 # Reference levels: weather=clear, day=FRIDAY, weekday/weekend=Weekday, event=No, month=April
@@ -43,7 +76,7 @@ DUMMY_COLS = [
     "Month_November", "Month_October", "Month_September",
 ]
 
-# 12-column raw feature order — CatBoost (Cookie/Brownie) only.
+# 12-column raw feature order — CatBoost models (Cookie/Brownie, Sweet Treat).
 RAW_COLS = [
     "temp_f", "precip_in", "humidity_pct", "wind_mph",
     "Total Occ %", "Group Occ %", "Transient Occ %",
@@ -53,62 +86,50 @@ CAT_FEATURES = ["weather_condition", "Day of Week", "Weekday or Weekend", "Event
 
 COND_OPTIONS = ["clear", "cloudy", "rainy", "snowy"]
 
-WMO_MAP = {
-    0:  "clear",
-    1: "cloudy",  2: "cloudy",  3: "cloudy",
-    45: "cloudy", 48: "cloudy",
-    51: "rainy",  53: "rainy",  55: "rainy",
-    56: "rainy",  57: "rainy",
-    61: "rainy",  63: "rainy",  65: "rainy",
-    66: "rainy",  67: "rainy",
-    71: "snowy",  73: "snowy",  75: "snowy",  77: "snowy",
-    80: "rainy",  81: "rainy",  82: "rainy",
-    85: "snowy",  86: "snowy",
-    95: "rainy",  96: "rainy",  99: "rainy",
+DEFAULT_WEATHER = {
+    "temp_f": 65.0, "precip_in": 0.0,
+    "humidity_pct": 50.0, "wind_mph": 5.0, "weather_condition": "clear",
 }
 
-_BASE_URL = (
-    "https://api.open-meteo.com/v1/forecast"
-    "?latitude=36.3729&longitude=-94.2088"
-    "&hourly=relative_humidity_2m"
-    "&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max,weather_code"
-    "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch"
-    "&timezone=America%2FChicago"
-)
+# ── Weather: cached file first, live API fallback ──────────────────────────────
+# A GitHub Actions job (.github/workflows/weather_cache.yml) refreshes
+# data/weather_cache.json at 5 AM Central daily, so normal page loads make no
+# API call at all. Both sources use the same business-hours aggregation
+# (hourly 6 AM-2 PM readings: mean of numerics, mode of condition).
 
-# ── Weather helpers ────────────────────────────────────────────────────────────
-
-def _parse_daily(d: dict, idx: int) -> dict:
-    daily    = d["daily"]
-    wmo      = daily["weather_code"][idx]
-    hum_vals = d["hourly"]["relative_humidity_2m"][idx * 24 : (idx + 1) * 24]
-    humidity = round(sum(hum_vals) / len(hum_vals), 1) if hum_vals else 50.0
-    return {
-        "date":              daily["time"][idx],
-        "temp_f":            round(daily["temperature_2m_max"][idx], 1),
-        "precip_in":         round(daily["precipitation_sum"][idx], 2),
-        "humidity_pct":      humidity,
-        "wind_mph":          round(daily["wind_speed_10m_max"][idx], 1),
-        "weather_condition": WMO_MAP.get(wmo, "clear"),
-    }
+def load_cached_days() -> tuple[dict, str] | None:
+    """Return ({date_iso: weather}, generated_at) if the cache file exists
+    and is fresher than CACHE_MAX_AGE_HOURS, else None."""
+    try:
+        cache = json.loads(CACHE_PATH.read_text())
+        generated = datetime.fromisoformat(cache["generated_at"])
+        age_hours = (datetime.now(CENTRAL) - generated).total_seconds() / 3600
+        if age_hours > CACHE_MAX_AGE_HOURS or not cache.get("days"):
+            return None
+        return cache["days"], cache["generated_at"]
+    except Exception:
+        return None
 
 
 @st.cache_data(ttl=1800)
-def fetch_today_weather() -> dict:
-    """Today's forecast — used for the Daily tab."""
-    r = requests.get(_BASE_URL + "&forecast_days=1", timeout=10)
+def fetch_live_days() -> dict:
+    """Live Open-Meteo fallback — same aggregation as the cache builder."""
+    r = requests.get(API_URL, timeout=15)
     r.raise_for_status()
-    return _parse_daily(r.json(), 0)
+    return aggregate_business_hours(r.json()["hourly"])
 
 
-@st.cache_data(ttl=1800)
-def fetch_week_weather() -> list[dict]:
-    """7-day weather forecast (tomorrow through today+7) — used for the Weekly tab."""
-    r = requests.get(_BASE_URL + "&forecast_days=8", timeout=10)
-    r.raise_for_status()
-    d = r.json()
-    # Index 0 = today (covered by Daily tab); indices 1-7 = next 7 days
-    return [_parse_daily(d, i) for i in range(1, 8)]
+def get_weather_days(today_iso: str) -> tuple[dict, str]:
+    """Weather for today + next 7 days, keyed by ISO date.
+    Returns (days, source_note); days is {} if every source failed."""
+    cached = load_cached_days()
+    if cached and today_iso in cached[0]:
+        days, generated_at = cached
+        return days, f"cached {generated_at[:16].replace('T', ' ')}"
+    try:
+        return fetch_live_days(), "live Open-Meteo (cache missing or stale)"
+    except Exception:
+        return {}, "unavailable"
 
 # ── Model loading ──────────────────────────────────────────────────────────────
 
@@ -191,19 +212,17 @@ def show_weather_metrics(w: dict):
 
 
 def weather_override_expander(api_weather: dict | None, key: str) -> dict:
-    defaults = api_weather or {
-        "temp_f": 65.0, "precip_in": 0.0,
-        "humidity_pct": 50.0, "wind_mph": 5.0, "weather_condition": "clear",
-    }
+    defaults = api_weather or DEFAULT_WEATHER
     with st.expander(
         "Override weather" if api_weather else "Enter weather manually",
         expanded=not bool(api_weather),
     ):
-        temp_f       = st.number_input("Temp (°F)",          value=float(defaults["temp_f"]),       step=0.5,  key=f"{key}_temp")
-        precip_in    = st.number_input("Precipitation (in)", value=float(defaults["precip_in"]),    step=0.01, format="%.2f", key=f"{key}_precip")
-        humidity_pct = st.number_input("Humidity (%)",       value=float(defaults["humidity_pct"]), step=0.5,  key=f"{key}_hum")
-        wind_mph     = st.number_input("Wind (mph)",         value=float(defaults["wind_mph"]),     step=0.5,  key=f"{key}_wind")
-        weather_cond = st.selectbox(
+        c1, c2, c3, c4, c5 = st.columns(5)
+        temp_f       = c1.number_input("Temp (°F)",          value=float(defaults["temp_f"]),       step=0.5,  key=f"{key}_temp")
+        precip_in    = c2.number_input("Precipitation (in)", value=float(defaults["precip_in"]),    step=0.01, format="%.2f", key=f"{key}_precip")
+        humidity_pct = c3.number_input("Humidity (%)",       value=float(defaults["humidity_pct"]), step=0.5,  key=f"{key}_hum")
+        wind_mph     = c4.number_input("Wind (mph)",         value=float(defaults["wind_mph"]),     step=0.5,  key=f"{key}_wind")
+        weather_cond = c5.selectbox(
             "Condition", COND_OPTIONS,
             index=COND_OPTIONS.index(defaults["weather_condition"]),
             key=f"{key}_cond",
@@ -217,23 +236,54 @@ def weather_override_expander(api_weather: dict | None, key: str) -> dict:
     }
 
 
-def sweet_treat_warning():
-    st.warning(
-        "⚠️ **Sweet Treat** prediction has low reliability (R² = −2.195 across all models). "
-        "Use as a rough guide only."
+def show_bake_tables(results: dict, day_label: str):
+    """Split one prediction dict into the fresh-bake and stock-ahead tables."""
+    st.subheader(f"📋 Units to Bake — {day_label}")
+    bake_df = pd.DataFrame(
+        [{"Pastry": display_name(k), "Units to Bake": results[k]} for k in BAKE_FRESH]
     )
+    st.dataframe(bake_df, use_container_width=True, hide_index=True)
+
+    st.subheader("🧺 Make Sure There Is Enough of:")
+    stock_df = pd.DataFrame(
+        [{"Item": display_name(k), "Units": results[k]} for k in STOCK_AHEAD]
+    )
+    st.dataframe(stock_df, use_container_width=True, hide_index=True)
+
+
+def show_weekly_matrices(weekly_results: dict):
+    """Two pastry × day matrices: fresh bakes on top, stock-ahead below."""
+    day_labels = list(weekly_results.keys())
+
+    st.subheader("📋 Units to Bake")
+    bake_df = pd.DataFrame(
+        {day: [weekly_results[day][p] for p in BAKE_FRESH] for day in day_labels},
+        index=[display_name(p) for p in BAKE_FRESH],
+    )
+    bake_df.index.name = "Pastry"
+    st.dataframe(bake_df, use_container_width=True)
+
+    st.subheader("🧺 Make Sure There Is Enough of:")
+    stock_df = pd.DataFrame(
+        {day: [weekly_results[day][p] for p in STOCK_AHEAD] for day in day_labels},
+        index=[display_name(p) for p in STOCK_AHEAD],
+    )
+    stock_df.index.name = "Item"
+    st.dataframe(stock_df, use_container_width=True)
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    today     = datetime.now().date()
+    today     = datetime.now(CENTRAL).date()
     yesterday = today - timedelta(days=1)
 
     st.title("🥐 Kohi Pastry Planner")
     st.markdown(f"**Today:** {today.strftime('%A, %B %d, %Y')}")
     st.divider()
 
-    tab_daily, tab_weekly = st.tabs(["📅 Daily", "📆 Weekly (Last 7 Days)"])
+    weather_days, weather_source = get_weather_days(today.isoformat())
+
+    tab_daily, tab_weekly = st.tabs(["📅 Daily", "📆 Weekly (Next 7 Days)"])
 
     # ══════════════════════════════════════════════════════════════════════════
     # DAILY TAB
@@ -244,18 +294,15 @@ def main():
             "Enter **yesterday's** hotel occupancy (those guests are today's coffee shop customers). "
             "Today's weather is loaded automatically."
         )
-        st.divider()
 
-        # Weather — TODAY's forecast
+        # Weather — TODAY, averaged over business hours (6 AM-3 PM)
         st.subheader("☁️ Today's Weather")
-        api_wx = None
-        try:
-            api_wx = fetch_today_weather()
-        except Exception as exc:
-            st.warning(f"Could not load today's weather — enter it manually below.  \n_(Error: {exc})_")
-
+        api_wx = weather_days.get(today.isoformat())
         if api_wx:
             show_weather_metrics(api_wx)
+            st.caption(f"Business-hours average (6 AM-3 PM) · source: {weather_source}")
+        else:
+            st.warning("Could not load today's weather — enter it manually below.")
 
         weather = weather_override_expander(api_wx, key="daily")
         st.divider()
@@ -272,9 +319,9 @@ def main():
             occ_transient = st.number_input("Transient Occ %", min_value=0.0, max_value=100.0, value=50.0, step=0.5, key="d_trn")
         st.divider()
 
-        # Event — TODAY
-        st.subheader("📅 Is There an Event Today?")
-        event = st.radio("", ["No", "Yes"], horizontal=True,
+        # Event or Holiday — TODAY
+        st.subheader("📅 Is There an Event or Holiday Today?")
+        event = st.radio("Event or Holiday", ["No", "Yes"], horizontal=True,
                          label_visibility="collapsed", key="d_event")
         st.divider()
 
@@ -289,14 +336,9 @@ def main():
                 )
                 results = predict_one(models, X_dummy, X_raw)
 
-            st.subheader(f"📋 Recommended Units to Bake — {today.strftime('%A, %B %d')}")
-            sweet_treat_warning()
-            results_df = pd.DataFrame(
-                [{"Pastry": k, "Units to Bake": v} for k, v in results.items()]
-            )
-            st.dataframe(results_df, use_container_width=True, hide_index=True)
+            show_bake_tables(results, today.strftime("%A, %B %d"))
             st.caption(
-                f"Generated {datetime.now().strftime('%I:%M %p')}  ·  "
+                f"Generated {datetime.now(CENTRAL).strftime('%I:%M %p')} Central  ·  "
                 f"Weather: {weather['weather_condition'].capitalize()}, {weather['temp_f']}°F  ·  "
                 f"Occupancy from {yesterday.strftime('%a %b %d')}"
             )
@@ -319,60 +361,47 @@ def main():
         )
         st.divider()
 
-        # Fetch 7-day weather forecast (tomorrow through today+7)
-        api_week_wx: list[dict] = []
-        weather_ok = True
-        try:
-            api_week_wx = fetch_week_weather()
-        except Exception as exc:
-            st.warning(
-                f"Could not auto-fetch weekly weather forecast — weather columns are editable below.  \n"
-                f"_(Error: {exc})_"
-            )
-            weather_ok = False
-
-        # Build list of 7 future date objects oldest → newest (matches API order)
         week_dates = [today + timedelta(days=i) for i in range(1, 8)]
+        week_wx    = [weather_days.get(d.isoformat()) for d in week_dates]
+        weather_ok = all(w is not None for w in week_wx)
+        if not weather_ok:
+            st.warning("Could not load the full 7-day forecast — weather columns are editable below.")
 
-        # Build the DataFrame for st.data_editor
         rows = []
-        for i, d in enumerate(week_dates):
-            w = api_week_wx[i] if (weather_ok and i < len(api_week_wx)) else {
-                "temp_f": 65.0, "precip_in": 0.0,
-                "humidity_pct": 50.0, "wind_mph": 5.0, "weather_condition": "clear",
-            }
+        for d, w in zip(week_dates, week_wx):
+            w = w or DEFAULT_WEATHER
             rows.append({
-                "Date":            d.strftime("%a %b %d"),
-                "Condition":       w["weather_condition"].capitalize(),
-                "Temp (°F)":       w["temp_f"],
-                "Rain (in)":       w["precip_in"],
-                "Humidity (%)":    w["humidity_pct"],
-                "Wind (mph)":      w["wind_mph"],
-                "Total Occ %":     70.0,
-                "Group Occ %":     20.0,
-                "Transient Occ %": 50.0,
-                "Event":           "No",
+                "Date":             d.strftime("%a %b %d"),
+                "Condition":        w["weather_condition"].capitalize(),
+                "Temp (°F)":        w["temp_f"],
+                "Rain (in)":        w["precip_in"],
+                "Humidity (%)":     w["humidity_pct"],
+                "Wind (mph)":       w["wind_mph"],
+                "Total Occ %":      70.0,
+                "Group Occ %":      20.0,
+                "Transient Occ %":  50.0,
+                "Event or Holiday": "No",
             })
 
         edit_df = pd.DataFrame(rows)
 
-        # Weather columns are locked when fetch succeeded; editable when it failed
+        # Weather columns are locked when the forecast loaded; editable when it failed
         disabled_cols = ["Date"] + (["Condition", "Temp (°F)", "Rain (in)", "Humidity (%)", "Wind (mph)"] if weather_ok else [])
 
-        st.markdown("**Fill in occupancy and event for each day:**")
+        st.markdown("**Fill in occupancy and event/holiday for each day:**")
         edited = st.data_editor(
             edit_df,
             disabled=disabled_cols,
             column_config={
-                "Condition":       st.column_config.SelectboxColumn(options=[c.capitalize() for c in COND_OPTIONS]) if not weather_ok else None,
-                "Temp (°F)":       st.column_config.NumberColumn(format="%.1f"),
-                "Rain (in)":       st.column_config.NumberColumn(format="%.2f"),
-                "Humidity (%)":    st.column_config.NumberColumn(format="%.1f"),
-                "Wind (mph)":      st.column_config.NumberColumn(format="%.1f"),
-                "Total Occ %":     st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
-                "Group Occ %":     st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
-                "Transient Occ %": st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
-                "Event":           st.column_config.SelectboxColumn(options=["No", "Yes"]),
+                "Condition":        st.column_config.SelectboxColumn(options=[c.capitalize() for c in COND_OPTIONS]) if not weather_ok else None,
+                "Temp (°F)":        st.column_config.NumberColumn(format="%.1f"),
+                "Rain (in)":        st.column_config.NumberColumn(format="%.2f"),
+                "Humidity (%)":     st.column_config.NumberColumn(format="%.1f"),
+                "Wind (mph)":       st.column_config.NumberColumn(format="%.1f"),
+                "Total Occ %":      st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
+                "Group Occ %":      st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
+                "Transient Occ %":  st.column_config.NumberColumn(min_value=0.0, max_value=100.0, step=0.5, format="%.1f"),
+                "Event or Holiday": st.column_config.SelectboxColumn(options=["No", "Yes"]),
             },
             hide_index=True,
             use_container_width=True,
@@ -401,23 +430,14 @@ def main():
                         float(row["Total Occ %"]),
                         float(row["Group Occ %"]),
                         float(row["Transient Occ %"]),
-                        str(row["Event"]),
+                        str(row["Event or Holiday"]),
                         d,      # day-of-week / month from each specific day
                     )
                     weekly_results[d.strftime("%a %b %d")] = predict_one(models, X_dummy, X_raw)
 
-            st.subheader("📋 Weekly Bake Plan")
-            sweet_treat_warning()
-
-            # Rows = pastry categories, columns = days
-            pastries   = list(RANK1_MODELS.keys())
-            day_labels = list(weekly_results.keys())
-            matrix     = {day: [weekly_results[day][p] for p in pastries] for day in day_labels}
-            results_df = pd.DataFrame(matrix, index=pastries)
-            results_df.index.name = "Pastry"
-            st.dataframe(results_df, use_container_width=True)
+            show_weekly_matrices(weekly_results)
             st.caption(
-                f"Generated {datetime.now().strftime('%I:%M %p')}  ·  "
+                f"Generated {datetime.now(CENTRAL).strftime('%I:%M %p')} Central  ·  "
                 f"{week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')}"
             )
 
