@@ -24,3 +24,13 @@ data/hour_kohi.csv
 goal1_trained_models/*_2.pkl
 goal1_trained_models/*_3.pkl
 v8_kohi_modeling_v2 copy/
+
+# Goal 2 (peak-hour forecasting) — same local-only convention. The deployed
+# scheduler app lives in its own repo (kohi-scheduler); modeling code, the
+# aggregated sales tables, and results stay local.
+kohi_scheduler_web_app_prompt.md
+build_sum_hour_kohi.py
+data/sum_hour_kohi.csv
+data/sum_hour_kohi_dummy.csv
+goal2_scheduler_modeling/
+kohi_scheduler_web_app/
