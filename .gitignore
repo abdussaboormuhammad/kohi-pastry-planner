@@ -2,3 +2,25 @@
 __pycache__/
 *.pyc
 catboost_info/
+
+# Kept locally for reference/reproducibility, not part of the deployed app.
+# The repo stays deployment-only: streamlit_app.py, requirements.txt,
+# .streamlit/config.toml, fetch_weather_cache.py, .github/workflows/,
+# data/weather_cache.json, and the 9 rank-1 goal1_trained_models/*.pkl.
+handoff.md
+prompt.md
+update_prompt.md
+model_explain.md
+metrics_explain.md
+Summary of Models.png
+goal1_main.py
+clean_outliers.py
+goal1_results/
+goal1_results_report.html
+data/pastry_kohi.csv
+data/pastry_kohi_dummy.csv
+data/pastry_kohi_raw.csv
+data/hour_kohi.csv
+goal1_trained_models/*_2.pkl
+goal1_trained_models/*_3.pkl
+v8_kohi_modeling_v2 copy/
