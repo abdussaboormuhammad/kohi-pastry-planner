@@ -37,6 +37,17 @@ st.markdown("""
       flex: 0 0 auto !important;
       width: auto !important;
   }
+  /* Weather tiles: wrap into two rows (3 + 2) instead of horizontal
+     scroll — reads better than swiping for a 5-tile metric row. */
+  .st-key-weather_tiles [data-testid="stHorizontalBlock"] {
+      flex-wrap: wrap !important;
+      overflow-x: visible !important;
+  }
+  .st-key-weather_tiles [data-testid="stColumn"] {
+      min-width: 0 !important;
+      flex: 1 1 30% !important;
+      width: auto !important;
+  }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -227,12 +238,16 @@ def predict_one(models: dict, X_dummy: pd.DataFrame, X_raw: pd.DataFrame) -> dic
 # ── Shared UI helpers ──────────────────────────────────────────────────────────
 
 def show_weather_metrics(w: dict):
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Temp",      f"{w['temp_f']} °F")
-    c2.metric("Rain",      f"{w['precip_in']} in")
-    c3.metric("Humidity",  f"{w['humidity_pct']}%")
-    c4.metric("Wind",      f"{w['wind_mph']} mph")
-    c5.metric("Condition", w["weather_condition"].capitalize())
+    # Keyed container so the mobile CSS above can target just this row and
+    # wrap it into two lines (3 + 2) instead of the generic horizontal-scroll
+    # behavior used elsewhere.
+    with st.container(key="weather_tiles"):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Temp",      f"{w['temp_f']} °F")
+        c2.metric("Rain",      f"{w['precip_in']} in")
+        c3.metric("Humidity",  f"{w['humidity_pct']}%")
+        c4.metric("Wind",      f"{w['wind_mph']} mph")
+        c5.metric("Condition", w["weather_condition"].capitalize())
 
 
 def weather_override_expander(api_weather: dict | None, key: str) -> dict:
