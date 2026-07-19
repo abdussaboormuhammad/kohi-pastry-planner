@@ -34,3 +34,14 @@ data/sum_hour_kohi.csv
 data/sum_hour_kohi_dummy.csv
 goal2_scheduler_modeling/
 kohi_scheduler_web_app/
+
+# Goal 3 (interactive dashboard) — local-only, uses sensitive POS sales data.
+# Nothing in this folder may ever reach the public repos.
+kohi_dashboard/
+dashboard_prompt.md
+
+# Course deliverables — contain sales figures, stay local.
+A7_Executive_Summary_prompt.md
+executive_summary.docx
+pastry_instructions.pdf
+scheduler_instructions.pdf
