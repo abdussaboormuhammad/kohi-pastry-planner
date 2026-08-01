@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-31T06:38:31-05:00",
+  "generated_at": "2026-08-01T05:58:06-05:00",
   "timezone": "America/Chicago",
   "location": {
     "lat": 36.3729,
@@ -8,67 +8,67 @@
   "business_hours": "06:00-14:00 hourly readings (Kohi open 6 AM-3 PM Central)",
   "aggregation": "mean of temp/precip/humidity/wind, mode of condition",
   "days": {
-    "2026-07-31": {
-      "temp_f": 84.8,
-      "precip_in": 0.0,
-      "humidity_pct": 65.2,
-      "wind_mph": 11.2,
-      "weather_condition": "cloudy",
-      "hours_used": 9
-    },
     "2026-08-01": {
-      "temp_f": 72.4,
+      "temp_f": 72.1,
       "precip_in": 0.0,
-      "humidity_pct": 65.4,
-      "wind_mph": 14.4,
+      "humidity_pct": 68.2,
+      "wind_mph": 13.9,
       "weather_condition": "cloudy",
       "hours_used": 9
     },
     "2026-08-02": {
       "temp_f": 75.8,
       "precip_in": 0.0,
-      "humidity_pct": 60.3,
-      "wind_mph": 8.0,
+      "humidity_pct": 62.0,
+      "wind_mph": 10.9,
       "weather_condition": "clear",
       "hours_used": 9
     },
     "2026-08-03": {
-      "temp_f": 81.7,
+      "temp_f": 77.9,
       "precip_in": 0.0,
-      "humidity_pct": 46.4,
-      "wind_mph": 4.8,
+      "humidity_pct": 55.2,
+      "wind_mph": 4.4,
       "weather_condition": "clear",
       "hours_used": 9
     },
     "2026-08-04": {
-      "temp_f": 83.7,
+      "temp_f": 81.8,
       "precip_in": 0.0,
-      "humidity_pct": 47.8,
-      "wind_mph": 9.2,
+      "humidity_pct": 51.4,
+      "wind_mph": 7.8,
       "weather_condition": "clear",
       "hours_used": 9
     },
     "2026-08-05": {
-      "temp_f": 84.5,
+      "temp_f": 82.3,
       "precip_in": 0.0,
-      "humidity_pct": 45.0,
-      "wind_mph": 8.3,
-      "weather_condition": "clear",
+      "humidity_pct": 50.6,
+      "wind_mph": 10.1,
+      "weather_condition": "cloudy",
       "hours_used": 9
     },
     "2026-08-06": {
-      "temp_f": 89.0,
+      "temp_f": 87.4,
       "precip_in": 0.0,
-      "humidity_pct": 37.8,
-      "wind_mph": 12.1,
+      "humidity_pct": 45.2,
+      "wind_mph": 15.1,
       "weather_condition": "cloudy",
       "hours_used": 9
     },
     "2026-08-07": {
-      "temp_f": 86.4,
+      "temp_f": 88.4,
       "precip_in": 0.0,
-      "humidity_pct": 45.6,
-      "wind_mph": 7.1,
+      "humidity_pct": 41.7,
+      "wind_mph": 12.2,
+      "weather_condition": "clear",
+      "hours_used": 9
+    },
+    "2026-08-08": {
+      "temp_f": 87.6,
+      "precip_in": 0.0,
+      "humidity_pct": 47.3,
+      "wind_mph": 13.9,
       "weather_condition": "clear",
       "hours_used": 9
     }
