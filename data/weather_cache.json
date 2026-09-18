@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-17T09:24:01-05:00",
+  "generated_at": "2026-09-18T08:44:26-05:00",
   "timezone": "America/Chicago",
   "location": {
     "lat": 36.3729,
@@ -8,67 +8,67 @@
   "business_hours": "06:00-14:00 hourly readings (Kohi open 6 AM-3 PM Central)",
   "aggregation": "mean of temp/precip/humidity/wind, mode of condition",
   "days": {
-    "2026-09-17": {
-      "temp_f": 86.5,
+    "2026-09-18": {
+      "temp_f": 85.1,
       "precip_in": 0.0,
-      "humidity_pct": 55.4,
-      "wind_mph": 5.3,
+      "humidity_pct": 55.0,
+      "wind_mph": 7.5,
       "weather_condition": "clear",
       "hours_used": 9
     },
-    "2026-09-18": {
-      "temp_f": 87.7,
-      "precip_in": 0.0,
-      "humidity_pct": 48.8,
-      "wind_mph": 5.1,
-      "weather_condition": "cloudy",
-      "hours_used": 9
-    },
     "2026-09-19": {
-      "temp_f": 86.0,
+      "temp_f": 84.8,
       "precip_in": 0.0,
-      "humidity_pct": 35.8,
-      "wind_mph": 10.9,
+      "humidity_pct": 38.6,
+      "wind_mph": 10.1,
       "weather_condition": "clear",
       "hours_used": 9
     },
     "2026-09-20": {
-      "temp_f": 84.8,
-      "precip_in": 0.0,
-      "humidity_pct": 38.9,
-      "wind_mph": 10.3,
+      "temp_f": 82.2,
+      "precip_in": 0.005,
+      "humidity_pct": 49.4,
+      "wind_mph": 8.9,
       "weather_condition": "cloudy",
       "hours_used": 9
     },
     "2026-09-21": {
-      "temp_f": 77.3,
-      "precip_in": 0.001,
-      "humidity_pct": 64.9,
+      "temp_f": 75.1,
+      "precip_in": 0.014,
+      "humidity_pct": 72.7,
       "wind_mph": 4.1,
-      "weather_condition": "cloudy",
+      "weather_condition": "rainy",
       "hours_used": 9
     },
     "2026-09-22": {
-      "temp_f": 73.1,
+      "temp_f": 71.6,
       "precip_in": 0.0,
-      "humidity_pct": 78.4,
-      "wind_mph": 8.4,
+      "humidity_pct": 73.7,
+      "wind_mph": 8.1,
       "weather_condition": "cloudy",
       "hours_used": 9
     },
     "2026-09-23": {
-      "temp_f": 78.5,
+      "temp_f": 73.2,
       "precip_in": 0.0,
-      "humidity_pct": 69.4,
-      "wind_mph": 5.6,
-      "weather_condition": "cloudy",
+      "humidity_pct": 58.4,
+      "wind_mph": 8.1,
+      "weather_condition": "clear",
       "hours_used": 9
     },
     "2026-09-24": {
-      "temp_f": 77.2,
-      "precip_in": 0.001,
-      "humidity_pct": 72.4,
-      "wind_mph": 3.8,
+      "temp_f": 76.0,
+      "precip_in": 0.0,
+      "humidity_pct": 47.3,
+      "wind_mph": 6.5,
+      "weather_condition": "cloudy",
+      "hours_used": 9
+    },
+    "2026-09-25": {
+      "temp_f": 78.0,
+      "precip_in": 0.0,
+      "humidity_pct": 43.4,
+      "wind_mph": 7.9,
       "weather_condition": "cloudy",
       "hours_used": 9
     }
